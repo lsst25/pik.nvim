@@ -7,6 +7,8 @@ local themes = require("telescope.themes")
 
 local pik = require("pik")
 
+-- Select plugin pickers
+
 local function pick_option(selector, opts)
   opts = themes.get_dropdown({
     layout_config = {
@@ -82,7 +84,7 @@ local function pick_selector(opts)
 
   pickers
     .new(opts, {
-      prompt_title = "Pik",
+      prompt_title = "Pik Select",
       finder = finders.new_table({
         results = selectors,
         entry_maker = function(selector)
@@ -110,11 +112,80 @@ local function pick_selector(opts)
     :find()
 end
 
+-- Worktree plugin picker
+
+local function pick_worktree(opts)
+  local worktrees, err = pik.list_worktrees()
+  if err then
+    vim.notify("pik: " .. err, vim.log.levels.ERROR)
+    return
+  end
+
+  if not worktrees or #worktrees == 0 then
+    vim.notify("No worktrees found", vim.log.levels.WARN)
+    return
+  end
+
+  opts = themes.get_dropdown({
+    layout_config = {
+      width = 0.6,
+      height = 0.4,
+    },
+    previewer = false,
+  })
+
+  -- Get current working directory to mark current worktree
+  local cwd = vim.fn.getcwd()
+
+  pickers
+    .new(opts, {
+      prompt_title = "Pik Worktree",
+      finder = finders.new_table({
+        results = worktrees,
+        entry_maker = function(worktree)
+          local branch = worktree.branch or "(detached)"
+          local is_current = worktree.path == cwd
+          local main_label = worktree.isMain and " [main]" or ""
+          local current_label = is_current and " (current)" or ""
+
+          local display = string.format("%s%s%s - %s", branch, main_label, current_label, worktree.path)
+          return {
+            value = worktree,
+            display = display,
+            ordinal = branch .. " " .. worktree.path,
+          }
+        end,
+      }),
+      sorter = conf.generic_sorter(opts),
+      attach_mappings = function(prompt_bufnr, map)
+        actions.select_default:replace(function()
+          actions.close(prompt_bufnr)
+          local selection = action_state.get_selected_entry()
+          if selection then
+            local success, result = pik.switch_worktree(selection.value.path)
+            if success then
+              vim.notify(
+                string.format("Switched to worktree: %s", selection.value.branch or selection.value.path),
+                vim.log.levels.INFO
+              )
+            else
+              vim.notify("Failed to switch worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
+            end
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
 return require("telescope").register_extension({
   setup = function(ext_config, config)
     -- Extension setup if needed
   end,
   exports = {
-    pik = pick_selector,
+    pik = pick_selector, -- Default/legacy
+    select = pick_selector,
+    worktree = pick_worktree,
   },
 })
