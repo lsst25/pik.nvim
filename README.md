@@ -73,6 +73,16 @@ require("pik").setup({
 })
 ```
 
+Killport reads its config from `pik.config.ts`:
+
+```ts
+export default defineConfig({
+  killport: {
+    defaultPort: 3000,
+  },
+});
+```
+
 ## Requirements
 
 - [pik CLI](https://github.com/lsst25/pik) (`npm install -g @lsst/pik`)

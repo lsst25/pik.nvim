@@ -217,10 +217,42 @@ function M.kill_port(port)
   return true, string.format("Killed %d process(es) on port %d", #pids, port)
 end
 
+function M.get_killport_config()
+  local handle = io.popen(M.config.cli_path .. " killport --config --json 2>/dev/null")
+  if not handle then
+    return nil
+  end
+
+  local result = handle:read("*a")
+  handle:close()
+
+  if result == "" then
+    return nil
+  end
+
+  local ok, data = pcall(vim.json.decode, result)
+  if not ok then
+    return nil
+  end
+
+  return data
+end
+
 function M.killport()
-  vim.ui.input({ prompt = "Port number: " }, function(port_str)
-    if not port_str or port_str == "" then
+  local config = M.get_killport_config()
+  local default_port = config and config.defaultPort
+  local prompt = "Port number: "
+  if default_port then
+    prompt = string.format("Port number [%d]: ", default_port)
+  end
+
+  vim.ui.input({ prompt = prompt }, function(port_str)
+    if port_str == nil then
       return
+    end
+
+    if port_str == "" and default_port then
+      port_str = tostring(default_port)
     end
 
     local port = tonumber(port_str)
