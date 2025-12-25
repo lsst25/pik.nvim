@@ -291,69 +291,6 @@ local function worktree_create(opts)
   end)
 end
 
--- Killport plugin picker
-
-local function pick_killport(opts)
-  local ports, err = pik.list_ports()
-  if err then
-    vim.notify("pik: " .. err, vim.log.levels.ERROR)
-    return
-  end
-
-  if not ports or #ports == 0 then
-    vim.notify("No listening ports found", vim.log.levels.WARN)
-    return
-  end
-
-  opts = themes.get_dropdown({
-    layout_config = {
-      width = 0.5,
-      height = 0.4,
-    },
-    previewer = false,
-  })
-
-  pickers
-    .new(opts, {
-      prompt_title = "Kill Port",
-      finder = finders.new_table({
-        results = ports,
-        entry_maker = function(port_info)
-          local display = string.format(":%d - %s (pid %d)", port_info.port, port_info.command, port_info.pid)
-          return {
-            value = port_info,
-            display = display,
-            ordinal = tostring(port_info.port) .. " " .. port_info.command,
-          }
-        end,
-      }),
-      sorter = conf.generic_sorter(opts),
-      attach_mappings = function(prompt_bufnr, map)
-        actions.select_default:replace(function()
-          actions.close(prompt_bufnr)
-          local selection = action_state.get_selected_entry()
-          if selection then
-            local port_info = selection.value
-            vim.ui.select({ "Yes", "No" }, {
-              prompt = string.format("Kill process on port %d (%s)?", port_info.port, port_info.command),
-            }, function(confirm)
-              if confirm == "Yes" then
-                local success, result = pik.kill_port(port_info.port)
-                if success then
-                  vim.notify(result, vim.log.levels.INFO)
-                else
-                  vim.notify(result, vim.log.levels.ERROR)
-                end
-              end
-            end)
-          end
-        end)
-        return true
-      end,
-    })
-    :find()
-end
-
 local function worktree_remove(opts)
   local worktrees, err = pik.list_worktrees()
   if err then
@@ -449,6 +386,5 @@ return require("telescope").register_extension({
     worktree = pick_worktree,
     worktree_create = worktree_create,
     worktree_remove = worktree_remove,
-    killport = pick_killport,
   },
 })

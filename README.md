@@ -61,11 +61,8 @@ Manage git worktrees directly from neovim:
 Kill processes running on specific ports:
 
 ```vim
-:PikKillport              " Select a port to kill
-:Telescope pik killport   " Telescope command
+:PikKillport              " Prompts for port number and kills process
 ```
-
-Shows all listening TCP ports with process name and PID.
 
 ## Configuration
 
