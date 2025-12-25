@@ -18,6 +18,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
   keys = {
     { "<leader>ps", "<cmd>Telescope pik select<cr>", desc = "Pik select" },
     { "<leader>pw", "<cmd>Telescope pik worktree<cr>", desc = "Pik worktree" },
+    { "<leader>pk", "<cmd>PikKillport<cr>", desc = "Pik killport" },
   },
 }
 ```
