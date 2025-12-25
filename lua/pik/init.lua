@@ -190,4 +190,72 @@ function M.worktree_remove()
   telescope.extensions.pik.worktree_remove()
 end
 
+-- Killport plugin functions
+
+function M.list_ports()
+  local handle = io.popen("lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null | tail -n +2")
+  if not handle then
+    return nil, "Failed to execute lsof"
+  end
+
+  local result = handle:read("*a")
+  handle:close()
+
+  local ports = {}
+  local seen = {}
+
+  for line in result:gmatch("[^\r\n]+") do
+    local command, pid, port = line:match("^(%S+)%s+(%d+)%s+%S+%s+%S+%s+%S+%s+%S+%s+%S+%s+%S-:(%d+)")
+    if port and not seen[port] then
+      seen[port] = true
+      table.insert(ports, {
+        port = tonumber(port),
+        pid = tonumber(pid),
+        command = command,
+      })
+    end
+  end
+
+  table.sort(ports, function(a, b)
+    return a.port < b.port
+  end)
+
+  return ports, nil
+end
+
+function M.kill_port(port)
+  local handle = io.popen(string.format("lsof -ti:%d 2>/dev/null", port))
+  if not handle then
+    return false, "Failed to execute lsof"
+  end
+
+  local result = handle:read("*a")
+  handle:close()
+
+  local pids = {}
+  for pid in result:gmatch("%d+") do
+    table.insert(pids, pid)
+  end
+
+  if #pids == 0 then
+    return false, "No process found on port " .. port
+  end
+
+  for _, pid in ipairs(pids) do
+    os.execute("kill -9 " .. pid)
+  end
+
+  return true, string.format("Killed %d process(es) on port %d", #pids, port)
+end
+
+function M.killport()
+  local ok, telescope = pcall(require, "telescope")
+  if not ok then
+    vim.notify("Telescope is required for pik.killport()", vim.log.levels.ERROR)
+    return
+  end
+
+  telescope.extensions.pik.killport()
+end
+
 return M

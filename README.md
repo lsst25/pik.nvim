@@ -56,6 +56,17 @@ Manage git worktrees directly from neovim:
 
 **Worktree Remove**: Select a worktree to remove with confirmation. Offers force removal if the worktree has uncommitted changes.
 
+### Killport Plugin
+
+Kill processes running on specific ports:
+
+```vim
+:PikKillport              " Select a port to kill
+:Telescope pik killport   " Telescope command
+```
+
+Shows all listening TCP ports with process name and PID.
+
 ## Configuration
 
 ```lua

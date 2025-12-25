@@ -22,3 +22,7 @@ end, { desc = "Create a new pik worktree" })
 vim.api.nvim_create_user_command("PikWorktreeRemove", function()
   require("pik").worktree_remove()
 end, { desc = "Remove a pik worktree" })
+
+vim.api.nvim_create_user_command("PikKillport", function()
+  require("pik").killport()
+end, { desc = "Kill process on a port" })
