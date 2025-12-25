@@ -47,7 +47,6 @@ local function pick_option(selector, opts)
                 string.format("Set %s to %s", selector.name, selection.value.name),
                 vim.log.levels.INFO
               )
-              -- Reload the buffer to show changes (deferred to avoid LSP issues)
               vim.schedule(function()
                 vim.cmd("checktime")
               end)
@@ -112,7 +111,7 @@ local function pick_selector(opts)
     :find()
 end
 
--- Worktree plugin picker
+-- Worktree plugin pickers
 
 local function pick_worktree(opts)
   local worktrees, err = pik.list_worktrees()
@@ -134,12 +133,11 @@ local function pick_worktree(opts)
     previewer = false,
   })
 
-  -- Get current working directory to mark current worktree
   local cwd = vim.fn.getcwd()
 
   pickers
     .new(opts, {
-      prompt_title = "Pik Worktree",
+      prompt_title = "Pik Worktree (switch)",
       finder = finders.new_table({
         results = worktrees,
         entry_maker = function(worktree)
@@ -179,6 +177,205 @@ local function pick_worktree(opts)
     :find()
 end
 
+local function worktree_create(opts)
+  -- First, ask whether to create new branch or use existing
+  vim.ui.select({ "Create new branch", "Use existing branch" }, {
+    prompt = "Worktree from:",
+  }, function(choice)
+    if not choice then
+      return
+    end
+
+    local is_new_branch = choice == "Create new branch"
+
+    if is_new_branch then
+      -- Ask for new branch name
+      vim.ui.input({ prompt = "New branch name: " }, function(branch_name)
+        if not branch_name or branch_name == "" then
+          return
+        end
+
+        -- Ask for worktree directory name
+        local default_name = branch_name:gsub("/", "-")
+        vim.ui.input({ prompt = "Worktree directory name: ", default = default_name }, function(wt_name)
+          if not wt_name or wt_name == "" then
+            wt_name = default_name
+          end
+
+          local success, result = pik.create_worktree(branch_name, true, wt_name)
+          if success then
+            vim.notify("Created worktree for branch: " .. branch_name, vim.log.levels.INFO)
+          else
+            vim.notify("Failed to create worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
+          end
+        end)
+      end)
+    else
+      -- Pick from existing branches
+      local branches, err = pik.list_branches()
+      if err then
+        vim.notify("Failed to list branches: " .. err, vim.log.levels.ERROR)
+        return
+      end
+
+      -- Filter out branches that already have worktrees
+      local worktrees = pik.list_worktrees() or {}
+      local worktree_branches = {}
+      for _, wt in ipairs(worktrees) do
+        if wt.branch then
+          worktree_branches[wt.branch] = true
+        end
+      end
+
+      local available_branches = {}
+      for _, branch in ipairs(branches) do
+        if not worktree_branches[branch] then
+          table.insert(available_branches, branch)
+        end
+      end
+
+      if #available_branches == 0 then
+        vim.notify("All branches already have worktrees", vim.log.levels.WARN)
+        return
+      end
+
+      opts = themes.get_dropdown({
+        layout_config = {
+          width = 0.5,
+          height = 0.4,
+        },
+        previewer = false,
+      })
+
+      pickers
+        .new(opts, {
+          prompt_title = "Select branch for worktree",
+          finder = finders.new_table({
+            results = available_branches,
+            entry_maker = function(branch)
+              return {
+                value = branch,
+                display = branch,
+                ordinal = branch,
+              }
+            end,
+          }),
+          sorter = conf.generic_sorter(opts),
+          attach_mappings = function(prompt_bufnr, map)
+            actions.select_default:replace(function()
+              actions.close(prompt_bufnr)
+              local selection = action_state.get_selected_entry()
+              if selection then
+                local branch_name = selection.value
+                local default_name = branch_name:gsub("/", "-")
+
+                vim.ui.input({ prompt = "Worktree directory name: ", default = default_name }, function(wt_name)
+                  if not wt_name or wt_name == "" then
+                    wt_name = default_name
+                  end
+
+                  local success, result = pik.create_worktree(branch_name, false, wt_name)
+                  if success then
+                    vim.notify("Created worktree for branch: " .. branch_name, vim.log.levels.INFO)
+                  else
+                    vim.notify("Failed to create worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
+                  end
+                end)
+              end
+            end)
+            return true
+          end,
+        })
+        :find()
+    end
+  end)
+end
+
+local function worktree_remove(opts)
+  local worktrees, err = pik.list_worktrees()
+  if err then
+    vim.notify("pik: " .. err, vim.log.levels.ERROR)
+    return
+  end
+
+  -- Filter out main worktree
+  local removable = {}
+  for _, wt in ipairs(worktrees or {}) do
+    if not wt.isMain then
+      table.insert(removable, wt)
+    end
+  end
+
+  if #removable == 0 then
+    vim.notify("No removable worktrees found", vim.log.levels.WARN)
+    return
+  end
+
+  opts = themes.get_dropdown({
+    layout_config = {
+      width = 0.6,
+      height = 0.4,
+    },
+    previewer = false,
+  })
+
+  pickers
+    .new(opts, {
+      prompt_title = "Remove worktree",
+      finder = finders.new_table({
+        results = removable,
+        entry_maker = function(worktree)
+          local branch = worktree.branch or "(detached)"
+          local display = string.format("%s - %s", branch, worktree.path)
+          return {
+            value = worktree,
+            display = display,
+            ordinal = branch .. " " .. worktree.path,
+          }
+        end,
+      }),
+      sorter = conf.generic_sorter(opts),
+      attach_mappings = function(prompt_bufnr, map)
+        actions.select_default:replace(function()
+          actions.close(prompt_bufnr)
+          local selection = action_state.get_selected_entry()
+          if selection then
+            local wt = selection.value
+            vim.ui.select({ "Yes", "No" }, {
+              prompt = string.format("Remove worktree %s?", wt.branch or wt.path),
+            }, function(confirm)
+              if confirm == "Yes" then
+                local success, result = pik.remove_worktree(wt.path, false)
+                if success then
+                  vim.notify("Removed worktree: " .. (wt.branch or wt.path), vim.log.levels.INFO)
+                else
+                  -- Try with force
+                  vim.ui.select({ "Yes, force remove", "No" }, {
+                    prompt = "Worktree may have changes. Force remove?",
+                  }, function(force_confirm)
+                    if force_confirm == "Yes, force remove" then
+                      local force_success, force_result = pik.remove_worktree(wt.path, true)
+                      if force_success then
+                        vim.notify("Removed worktree: " .. (wt.branch or wt.path), vim.log.levels.INFO)
+                      else
+                        vim.notify(
+                          "Failed to remove worktree: " .. (force_result or "unknown error"),
+                          vim.log.levels.ERROR
+                        )
+                      end
+                    end
+                  end)
+                end
+              end
+            end)
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
 return require("telescope").register_extension({
   setup = function(ext_config, config)
     -- Extension setup if needed
@@ -187,5 +384,7 @@ return require("telescope").register_extension({
     pik = pick_selector, -- Default/legacy
     select = pick_selector,
     worktree = pick_worktree,
+    worktree_create = worktree_create,
+    worktree_remove = worktree_remove,
   },
 })

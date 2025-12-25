@@ -36,12 +36,25 @@ Switch between config options defined with `@pik:select` markers:
 
 ### Worktree Plugin
 
-Switch between git worktrees (changes neovim's working directory):
+Manage git worktrees directly from neovim:
 
 ```vim
-:PikWorktree            " Open worktree picker
-:Telescope pik worktree " Telescope command
+:PikWorktree              " Switch between worktrees
+:PikWorktreeCreate        " Create a new worktree
+:PikWorktreeRemove        " Remove a worktree
+
+:Telescope pik worktree         " Telescope command (switch)
+:Telescope pik worktree_create  " Telescope command (create)
+:Telescope pik worktree_remove  " Telescope command (remove)
 ```
+
+**Worktree Switch**: Select a worktree to switch to (changes neovim's cwd).
+
+**Worktree Create**: Create a new worktree from either:
+- A new branch (prompts for branch name and directory)
+- An existing branch (shows picker with available branches)
+
+**Worktree Remove**: Select a worktree to remove with confirmation. Offers force removal if the worktree has uncommitted changes.
 
 ## Configuration
 
