@@ -120,6 +120,7 @@ function M.create_worktree(branch, is_new_branch, worktree_name)
   if is_new_branch then
     args = args .. " -n"
   end
+  args = args .. " -y"
 
   local cmd = M.config.cli_path .. " " .. args .. " 2>&1"
   local handle = io.popen(cmd)
