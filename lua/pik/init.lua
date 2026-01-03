@@ -111,7 +111,39 @@ function M.switch_worktree(path)
   return true, nil
 end
 
-function M.create_worktree(branch, is_new_branch, worktree_name)
+-- Helper function to create output window
+local function create_output_window(title)
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_buf_set_option(buf, "filetype", "pikoutput")
+  vim.api.nvim_buf_set_option(buf, "modifiable", true)
+
+  local width = math.floor(vim.o.columns * 0.8)
+  local height = math.floor(vim.o.lines * 0.8)
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+
+  local opts = {
+    relative = "editor",
+    width = width,
+    height = height,
+    row = row,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    title = title,
+    title_pos = "center",
+  }
+
+  local win = vim.api.nvim_open_win(buf, true, opts)
+
+  -- Set buffer to be closable with 'q'
+  vim.api.nvim_buf_set_keymap(buf, "n", "q", ":close<CR>", { noremap = true, silent = true })
+
+  return buf, win
+end
+
+function M.create_worktree(branch, is_new_branch, worktree_name, callback)
   local args = "worktree create"
   if worktree_name then
     args = args .. " " .. vim.fn.shellescape(worktree_name)
@@ -122,20 +154,70 @@ function M.create_worktree(branch, is_new_branch, worktree_name)
   end
   args = args .. " -y"
 
-  local cmd = M.config.cli_path .. " " .. args .. " 2>&1"
-  local handle = io.popen(cmd)
-  if not handle then
-    return false, "Failed to execute pik"
+  local cmd = M.config.cli_path .. " " .. args
+
+  -- Create output window
+  local buf, win = create_output_window(" Creating Worktree: " .. branch .. " ")
+  local output_lines = {}
+
+  local function append_output(job_id, data, event)
+    if data then
+      for _, line in ipairs(data) do
+        if line ~= "" then
+          table.insert(output_lines, line)
+        end
+      end
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.api.nvim_buf_set_lines(buf, 0, -1, false, output_lines)
+          -- Auto-scroll to bottom
+          if vim.api.nvim_win_is_valid(win) then
+            local line_count = #output_lines
+            if line_count > 0 then
+              vim.api.nvim_win_set_cursor(win, { line_count, 0 })
+            end
+          end
+        end
+      end)
+    end
   end
 
-  local result = handle:read("*a")
-  local success = handle:close()
+  local job_id = vim.fn.jobstart(cmd, {
+    on_stdout = append_output,
+    on_stderr = append_output,
+    on_exit = function(job_id, exit_code, event)
+      vim.schedule(function()
+        -- Add completion message
+        local final_line = exit_code == 0 and "✓ Worktree created successfully. Press 'q' to close."
+          or "✗ Failed to create worktree. Press 'q' to close."
+        table.insert(output_lines, "")
+        table.insert(output_lines, final_line)
 
-  if not success then
-    return false, result
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.api.nvim_buf_set_lines(buf, 0, -1, false, output_lines)
+          if vim.api.nvim_win_is_valid(win) then
+            vim.api.nvim_win_set_cursor(win, { #output_lines, 0 })
+          end
+        end
+
+        -- Call callback if provided
+        if callback then
+          local success = exit_code == 0
+          local result = table.concat(output_lines, "\n")
+          callback(success, result)
+        end
+      end)
+    end,
+  })
+
+  if job_id <= 0 then
+    if callback then
+      callback(false, "Failed to start job")
+    end
+    if vim.api.nvim_win_is_valid(win) then
+      vim.api.nvim_win_close(win, true)
+    end
   end
-
-  return true, result
 end
 
 function M.remove_worktree(path, force)

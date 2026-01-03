@@ -202,12 +202,13 @@ local function worktree_create(opts)
             wt_name = default_name
           end
 
-          local success, result = pik.create_worktree(branch_name, true, wt_name)
-          if success then
-            vim.notify("Created worktree for branch: " .. branch_name, vim.log.levels.INFO)
-          else
-            vim.notify("Failed to create worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
-          end
+          pik.create_worktree(branch_name, true, wt_name, function(success, result)
+            if success then
+              vim.notify("Created worktree for branch: " .. branch_name, vim.log.levels.INFO)
+            else
+              vim.notify("Failed to create worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
+            end
+          end)
         end)
       end)
     else
@@ -274,12 +275,13 @@ local function worktree_create(opts)
                     wt_name = default_name
                   end
 
-                  local success, result = pik.create_worktree(branch_name, false, wt_name)
-                  if success then
-                    vim.notify("Created worktree for branch: " .. branch_name, vim.log.levels.INFO)
-                  else
-                    vim.notify("Failed to create worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
-                  end
+                  pik.create_worktree(branch_name, false, wt_name, function(success, result)
+                    if success then
+                      vim.notify("Created worktree for branch: " .. branch_name, vim.log.levels.INFO)
+                    else
+                      vim.notify("Failed to create worktree: " .. (result or "unknown error"), vim.log.levels.ERROR)
+                    end
+                  end)
                 end)
               end
             end)
