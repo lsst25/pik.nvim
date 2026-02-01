@@ -61,6 +61,77 @@ local function pick_option(selector, opts)
     :find()
 end
 
+local function pick_profile(opts)
+  local profiles, err = pik.list_profiles()
+  if err then
+    vim.notify("pik: " .. err, vim.log.levels.ERROR)
+    return
+  end
+
+  if not profiles or #profiles == 0 then
+    vim.notify("No profiles found", vim.log.levels.WARN)
+    return
+  end
+
+  opts = themes.get_dropdown({
+    layout_config = {
+      width = 0.5,
+      height = 0.4,
+    },
+    previewer = false,
+  })
+
+  pickers
+    .new(opts, {
+      prompt_title = "Pik Profile",
+      finder = finders.new_table({
+        results = profiles,
+        entry_maker = function(profile)
+          local status_indicator
+          if profile.isFullyActive then
+            status_indicator = "● "
+          elseif profile.isPartiallyActive then
+            status_indicator = "◐ "
+          else
+            status_indicator = "○ "
+          end
+
+          local count_info = string.format("(%d/%d)", profile.matchedCount, profile.totalCount)
+          local display = string.format("%s%s %s", status_indicator, profile.name, count_info)
+
+          return {
+            value = profile,
+            display = display,
+            ordinal = profile.name,
+          }
+        end,
+      }),
+      sorter = conf.generic_sorter(opts),
+      attach_mappings = function(prompt_bufnr, map)
+        actions.select_default:replace(function()
+          actions.close(prompt_bufnr)
+          local selection = action_state.get_selected_entry()
+          if selection then
+            local success, result = pik.apply_profile(selection.value.name)
+            if success then
+              vim.notify(
+                string.format("Applied profile: %s", selection.value.name),
+                vim.log.levels.INFO
+              )
+              vim.schedule(function()
+                vim.cmd("checktime")
+              end)
+            else
+              vim.notify("Failed to apply profile: " .. (result or "unknown error"), vim.log.levels.ERROR)
+            end
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
+end
+
 local function pick_selector(opts)
   local selectors, err = pik.list_selectors()
   if err then
@@ -385,6 +456,7 @@ return require("telescope").register_extension({
   exports = {
     pik = pick_selector, -- Default/legacy
     select = pick_selector,
+    profile = pick_profile,
     worktree = pick_worktree,
     worktree_create = worktree_create,
     worktree_remove = worktree_remove,

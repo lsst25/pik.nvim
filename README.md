@@ -17,6 +17,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
   end,
   keys = {
     { "<leader>ps", "<cmd>Telescope pik select<cr>", desc = "Pik select" },
+    { "<leader>pp", "<cmd>Telescope pik profile<cr>", desc = "Pik profile" },
     { "<leader>pw", "<cmd>Telescope pik worktree<cr>", desc = "Pik worktree" },
     { "<leader>pk", "<cmd>PikKillport<cr>", desc = "Pik killport" },
   },
@@ -33,6 +34,34 @@ Switch between config options defined with `@pik:select` markers:
 :Pik                    " Open selector picker
 :PikSelect              " Same as :Pik
 :Telescope pik select   " Telescope command
+```
+
+### Profiles
+
+Apply predefined profiles to switch multiple selectors at once:
+
+```vim
+:PikProfile             " Open profile picker
+:Telescope pik profile  " Telescope command
+```
+
+Profiles show their status in the picker:
+- **●** Fully active (all selectors match)
+- **◐** Partially active (some selectors match)
+- **○** Inactive (no selectors match)
+
+Configure profiles in `pik.config.ts`:
+
+```ts
+export default defineConfig({
+  select: {
+    include: ['src/**/*.ts'],
+    profiles: {
+      dev: { Environment: 'Development', Database: 'SQLite' },
+      prod: { Environment: 'Production', Database: 'Postgres' },
+    },
+  },
+});
 ```
 
 ### Worktree Plugin

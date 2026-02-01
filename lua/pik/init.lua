@@ -62,6 +62,60 @@ function M.switch()
   telescope.extensions.pik.select()
 end
 
+-- Profile functions
+
+function M.list_profiles()
+  local handle = io.popen(M.config.cli_path .. " select profiles --json 2>/dev/null")
+  if not handle then
+    return nil, "Failed to execute pik"
+  end
+
+  local result = handle:read("*a")
+  handle:close()
+
+  if result == "" then
+    return nil, "No output from pik CLI"
+  end
+
+  local ok, data = pcall(vim.json.decode, result)
+  if not ok then
+    return nil, "Failed to parse JSON: " .. result
+  end
+
+  if data.error then
+    return nil, data.error
+  end
+
+  return data, nil
+end
+
+function M.apply_profile(profile_name)
+  local cmd = string.format("%s select profile %s", M.config.cli_path, vim.fn.shellescape(profile_name))
+  local handle = io.popen(cmd .. " 2>&1")
+  if not handle then
+    return false, "Failed to execute pik"
+  end
+
+  local result = handle:read("*a")
+  local success = handle:close()
+
+  if not success then
+    return false, result
+  end
+
+  return true, result
+end
+
+function M.profile()
+  local ok, telescope = pcall(require, "telescope")
+  if not ok then
+    vim.notify("Telescope is required for pik.profile()", vim.log.levels.ERROR)
+    return
+  end
+
+  telescope.extensions.pik.profile()
+end
+
 -- Worktree plugin functions
 
 function M.list_worktrees()
